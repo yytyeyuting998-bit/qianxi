@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚓ 大航海时代 - 班级积分系统</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+
+:root {
+  --parchment: #f4e4c1;
+  --deep-sea: #0a1628;
+  --navy: #0d2137;
+  --gold: #d4a843;
+  --coral: #e05a4f;
+  --teal: #2a9d8f;
+  --wood: #8b5e3c;
+  --rope: #c9a96e;
+  --locked-red: rgba(220,38,38,0.12);
+  --card-bg: rgba(13,33,55,0.92);
+  --border-glow: rgba(212,168,67,0.3);
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  background: var(--deep-sea);
+  color: #e0d5c0;
+  user-select: none;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 10px; }
+
+/* ===== Login Screen ===== */
+#login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: radial-gradient(ellipse at center, #0d2137 0%, #060d18 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-container {
+  background: var(--card-bg);
+  border: 2px solid var(--border-glow);
+  border-radius: 20px;
+  padding: 50px 40px;
+  width: 420px;
+  text-align: center;
+  box-shadow: 0 0 80px rgba(212,168,67,0.15), inset 0 0 40px rgba(0,0,0,0.3);
+}
+.login-container h1 { font-size: 2rem; font-weight: 900; color: var(--gold); margin-bottom: 8px; }
+.login-container .subtitle { color: #8b9db5; font-size: 0.9rem; margin-bottom: 30px; }
+.login-input {
+  width: 100%; padding: 14px 18px; margin-bottom: 16px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(212,168,67,0.25);
+  border-radius: 10px; color: #fff; font-size: 1rem; outline: none;
+  transition: all 0.3s;
+}
+.login-input:focus { border-color: var(--gold); box-shadow: 0 0 20px rgba(212,168,67,0.2); }
+.login-btn {
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #d4a843, #b8860b);
+  border: none; border-radius: 10px; color: #1a1a1a; font-size: 1.1rem; font-weight: 700;
+  cursor: pointer; transition: all 0.3s; margin-top: 8px;
+}
+.login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(212,168,67,0.3); }
+
+/* ===== Map Lock Overlay ===== */
+#map-lock-overlay {
+  position: absolute; inset: 0; z-index: 10;
+  background: rgba(180,30,30,0.08);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  transition: all 0.5s;
+}
+#map-lock-overlay.unlocked { opacity: 0; pointer-events: none; }
+#map-lock-overlay .lock-msg {
+  background: rgba(180,30,30,0.85); color: #fff; padding: 18px 32px;
+  border-radius: 12px; font-size: 1.05rem; font-weight: 700;
+  pointer-events: auto; cursor: pointer;
+  animation: pulse-lock 2s infinite;
+}
+@keyframes pulse-lock {
+  0%,100% { box-shadow: 0 0 20px rgba(220,38,38,0.4); }
+  50% { box-shadow: 0 0 50px rgba(220,38,38,0.7); }
+}
+
+/* ===== Main Layout ===== */
+#main-app {
+  display: none; height: 100vh; width: 100vw;
+}
+#main-app.active { display: flex; }
+#map-area {
+  flex: 1; position: relative; min-width: 0;
+  background: linear-gradient(180deg, #0b1a2e 0%, #0d2847 40%, #0f3460 70%, #0a1628 100%);
+  overflow: hidden; cursor: grab;
+}
+#map-area:active { cursor: grabbing; }
+#map-area svg { width: 100%; height: 100%; }
+
+/* ===== Right Panel ===== */
+#right-panel {
+  width: 420px; min-width: 420px;
+  background: linear-gradient(180deg, #0d1f33 0%, #091428 100%);
+  border-left: 2px solid var(--border-glow);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: -5px 0 30px rgba(0,0,0,0.5);
+}
+.panel-header {
+  padding: 16px 20px; background: rgba(212,168,67,0.08);
+  border-bottom: 1px solid var(--border-glow);
+  font-weight: 700; font-size: 1rem;
+  display: flex; align-items: center; gap: 10px;
+  color: var(--gold);
+}
+.panel-nav {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px; padding: 10px 12px;
+}
+.nav-btn {
+  padding: 10px 6px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+  color: #8b9db5; font-size: 0.78rem; cursor: pointer;
+  transition: all 0.25s; text-align: center;
+}
+.nav-btn:hover { border-color: var(--gold); color: var(--gold); }
+.nav-btn.active { background: rgba(212,168,67,0.15); border-color: var(--gold); color: var(--gold); }
+.nav-btn i { display: block; font-size: 1.2rem; margin-bottom: 3px; }
+
+.panel-content {
+  flex: 1; overflow-y: auto; padding: 16px;
+}
+.stat-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: #8b9db5; font-size: 0.85rem; }
+.stat-value { font-weight: 700; font-size: 1.1rem; }
+.stat-value.gold { color: var(--gold); }
+.stat-value.teal { color: var(--teal); }
+.stat-value.coral { color: var(--coral); }
+
+/* ===== Drawer ===== */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.2s;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.drawer {
+  background: var(--card-bg); border: 2px solid var(--border-glow);
+  border-radius: 16px; width: 90%; max-width: 600px; max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: slideUp 0.3s;
+}
+@keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+.drawer-header {
+  padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 700; font-size: 1.05rem; color: var(--gold);
+}
+.drawer-close {
+  background: none; border: none; color: #8b9db5; font-size: 1.3rem;
+  cursor: pointer; transition: color 0.2s;
+}
+.drawer-close:hover { color: #fff; }
+.drawer-body { padding: 20px; overflow-y: auto; flex: 1; }
+
+/* ===== Buttons ===== */
+.btn-primary {
+  background: linear-gradient(135deg, #d4a843, #b8860b);
+  border: none; border-radius: 8px; color: #1a1a1a; padding: 10px 20px;
+  font-weight: 700; cursor: pointer; transition: all 0.25s;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(212,168,67,0.3); }
+.btn-secondary {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px; color: #e0d5c0; padding: 10px 20px;
+  font-weight: 600; cursor: pointer; transition: all 0.25s;
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.14); }
+.btn-danger {
+  background: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.3);
+  border-radius: 8px; color: #fca5a5; padding: 10px 20px;
+  font-weight: 600; cursor: pointer; transition: all 0.25s;
+}
+.btn-danger:hover { background: rgba(220,38,38,0.35); }
+
+/* ===== Port Tooltip ===== */
+#port-tooltip {
+  position: absolute; z-index: 50; pointer-events: none;
+  background: rgba(13,33,55,0.96); border: 1px solid var(--gold);
+  border-radius: 10px; padding: 14px 18px; font-size: 0.85rem;
+  max-width: 240px; opacity: 0; transition: opacity 0.2s;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+#port-tooltip.visible { opacity: 1; }
+#port-tooltip h4 { color: var(--gold); margin: 0 0 6px; font-size: 1rem; }
+#port-tooltip .detail { color: #8b9db5; font-size: 0.78rem; margin: 2px 0; }
+#port-tooltip .cost { color: var(--teal); font-weight: 700; }
+
+/* ===== Sailing Animation ===== */
+#sail-progress-container {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 60; width: 400px; display: none;
+}
+#sail-progress-container.active { display: block; }
+#sail-progress-bar {
+  height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;
+}
+#sail-progress-fill {
+  height: 100%; width: 0%; background: linear-gradient(90deg, #d4a843, #f0c060);
+  border-radius: 4px; transition: width 0.1s linear;
+}
+#sail-progress-text { text-align: center; font-size: 0.85rem; color: var(--gold); margin-top: 6px; }
+#sail-boat {
+  position: absolute; z-index: 55; font-size: 2rem;
+  transition: none; display: none;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.5));
+}
+
+/* ===== Teacher Dashboard ===== */
+#teacher-dashboard {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: var(--deep-sea); flex-direction: column;
+}
+#teacher-dashboard.active { display: flex; }
+.teacher-header {
+  padding: 16px 24px; background: rgba(212,168,67,0.08);
+  border-bottom: 1px solid var(--border-glow);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.teacher-body {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 16px;
+}
+.kpi-card {
+  background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px; padding: 20px; text-align: center;
+}
+.kpi-value { font-size: 2.2rem; font-weight: 900; color: var(--gold); }
+.kpi-label { font-size: 0.85rem; color: #8b9db5; margin-top: 4px; }
+.student-table-wrap {
+  grid-column: 1 / -1;
+  background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px; padding: 20px; overflow-x: auto;
+}
+.student-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.student-table th {
+  text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.15);
+  color: var(--gold); font-weight: 600;
+}
+.student-table td {
+  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.student-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* ===== Debug Panel ===== */
+#debug-panel {
+  position: fixed; bottom: 12px; left: 12px; z-index: 300;
+  background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px; padding: 10px 14px; display: flex; gap: 8px;
+  flex-wrap: wrap; font-size: 0.75rem;
+}
+#debug-panel button {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px; color: #ccc; padding: 5px 10px; cursor: pointer;
+  font-size: 0.72rem; transition: all 0.2s; white-space: nowrap;
+}
+#debug-panel button:hover { background: rgba(255,255,255,0.2); }
+.debug-toggle {
+  position: fixed; bottom: 12px; left: 12px; z-index: 301;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px; color: #aaa; padding: 6px 10px; cursor: pointer;
+  font-size: 0.7rem;
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; padding: 14px 28px; border-radius: 10px;
+  font-weight: 700; animation: toastIn 0.3s, toastOut 0.3s 2.5s forwards;
+  pointer-events: none;
+}
+.toast.success { background: rgba(42,157,143,0.9); color: #fff; }
+.toast.error { background: rgba(220,38,38,0.9); color: #fff; }
+.toast.warning { background: rgba(212,168,67,0.9); color: #1a1a1a; }
+@keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(-20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+@keyframes toastOut { from{opacity:1} to{opacity:0} }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.2s;
+}
+.modal-box {
+  background: var(--card-bg); border: 2px solid var(--border-glow);
+  border-radius: 16px; padding: 30px; max-width: 480px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  text-align: center;
+}
+.modal-box h3 { color: var(--gold); margin-bottom: 16px; }
+.career-option {
+  display: inline-block; width: 120px; padding: 16px 10px; margin: 8px;
+  background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px; cursor: pointer; transition: all 0.25s;
+}
+.career-option:hover { border-color: var(--gold); transform: translateY(-3px); }
+.career-option .icon { font-size: 2.5rem; margin-bottom: 8px; }
+.career-option .name { font-weight: 700; font-size: 0.9rem; }
+
+/* ===== Event Cards ===== */
+.event-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 14px;
+}
+.event-icon { font-size: 2rem; }
+.event-info { flex: 1; }
+.event-title { font-weight: 700; color: #e0d5c0; }
+.event-desc { font-size: 0.78rem; color: #8b9db5; margin-top: 3px; }
+
+/* ===== Shop Card ===== */
+.shop-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 12px;
+}
+.shop-card .icon { font-size: 2rem; }
+.shop-card .info { flex: 1; }
+.shop-card .name { font-weight: 700; }
+.shop-card .price { font-size: 0.8rem; color: var(--gold); }
+
+/* ===== Task Card ===== */
+.task-card {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.task-info { flex: 1; }
+.task-name { font-weight: 700; }
+.task-reward { font-size: 0.78rem; color: var(--teal); }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN SCREEN ==================== -->
+<div id="login-screen">
+  <div class="login-container">
+    <div style="font-size:3rem;margin-bottom:8px;">⚓</div>
+    <h1>大航海时代</h1>
+    <p class="subtitle">班级积分航海系统 · 扬帆起航</p>
+    <input type="text" id="login-id" class="login-input" placeholder="请输入学号缩写 (如: yyt)" autocomplete="off">
+    <input type="password" id="login-pw" class="login-input" placeholder="请输入密码" autocomplete="off">
+    <button class="login-btn" onclick="doLogin()">🔐 登 录</button>
+    <p style="margin-top:14px;font-size:0.72rem;color:#556677;">默认密码: 000000 | 示例账号: yyt</p>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="main-app">
+  <!-- MAP AREA -->
+  <div id="map-area">
+    <svg id="world-map" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="map-lock-overlay">
+      <div class="lock-msg" onclick="showPassportLockMsg()">🔴 航海证未激活！点击查看详情</div>
+    </div>
+    <div id="port-tooltip"></div>
+    <div id="sail-progress-container">
+      <div id="sail-progress-bar"><div id="sail-progress-fill"></div></div>
+      <div id="sail-progress-text">航行中...</div>
+    </div>
+    <div id="sail-boat">⛵</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+    <div class="panel-header">
+      <span id="current-user-label">🧑‍✈️ 见习船长</span>
+      <span style="flex:1;text-align:right;font-size:0.78rem;color:#8b9db5;" id="header-badges">🏅 5/12</span>
+    </div>
+    <div class="panel-nav" id="panel-nav">
+      <button class="nav-btn active" data-panel="profile"><i class="fa-solid fa-user"></i>个人</button>
+      <button class="nav-btn" data-panel="team"><i class="fa-solid fa-people-group"></i>团队</button>
+      <button class="nav-btn" data-panel="events"><i class="fa-solid fa-bolt"></i>事件</button>
+      <button class="nav-btn" data-panel="shop"><i class="fa-solid fa-store"></i>商店</button>
+      <button class="nav-btn" data-panel="tasks"><i class="fa-solid fa-list-check"></i>任务</button>
+      <button class="nav-btn" data-panel="settings"><i class="fa-solid fa-gear"></i>设置</button>
+    </div>
+    <div class="panel-content" id="panel-content"></div>
+  </div>
+</div>
+
+<!-- ==================== TEACHER DASHBOARD ==================== -->
+<div id="teacher-dashboard">
+  <div class="teacher-header">
+    <span style="font-weight:900;font-size:1.2rem;color:var(--gold);">📊 教师数据看板</span>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-secondary" onclick="batchAddPoints()">批量+10积分</button>
+      <button class="btn-secondary" onclick="batchAddBadge()">批量+1徽章</button>
+      <button class="btn-danger" onclick="forceResetAll()">强制全员下船</button>
+      <button class="btn-primary" onclick="toggleTeacherView()">返回学生视图</button>
+    </div>
+  </div>
+  <div class="teacher-body" id="teacher-body-content"></div>
+</div>
+
+<!-- ==================== DEBUG PANEL ==================== -->
+<button class="debug-toggle" id="debug-toggle-btn" onclick="toggleDebug()">🛠 调试</button>
+<div id="debug-panel" style="display:none;">
+  <button onclick="debugAddPoints(5)">+5 积分</button>
+  <button onclick="debugAddPoints(50)">+50 积分</button>
+  <button onclick="debugAddBadge()">+1 徽章</button>
+  <button onclick="debugSuperBadges()">🚀 直升15徽章</button>
+  <button onclick="debugAddTeam(10)">团队+10</button>
+</div>
+
+<script>
+// ===========================
+// GAME STATE
+// ===========================
+const DEFAULT_PASSWORD = '000000';
+let storedPassword = DEFAULT_PASSWORD;
+
+let gameState = {
+  userId: '',
+  career: null,          // null | 'captain' | 'cook' | 'sailor'
+  badges: 5,
+  points: 1250,
+  teamPoints: 200,
+  unlockedPorts: ['china'], // 默认已解锁中国
+  history: [],
+  completedTasks: [],
+  purchasedItems: [],
+  donatedTotal: 0
+};
+
+// Career definitions
+const CAREERS = {
+  captain: { name: '见习船长', icon: '🧑‍✈️', emoji: 'fa-solid fa-anchor' },
+  cook:    { name: '见习厨师', icon: '🍳', emoji: 'fa-solid fa-utensils' },
+  sailor:  { name: '见习水手', icon: '🔧', emoji: 'fa-solid fa-wrench' }
+};
+
+// Port definitions with SVG coordinates (in viewBox 1200x600)
+const PORTS = {
+  china:  { id:'china',  name:'中国·泉州港',   x:860, y:220, desc:'丝绸与瓷器的故乡，航海起点', goods:'丝绸、瓷器、茶叶', cost:0,   reward:0,   color:'#e74c3c' },
+  japan:  { id:'japan',  name:'日本·长崎港',   x:990, y:170, desc:'浮世绘与武士道之国',       goods:'刀剑、漆器、浮世绘',   cost:5,   reward:30,  color:'#e67e22' },
+  india:  { id:'india',  name:'印度·卡利卡特港', x:780, y:280, desc:'香料与瑜伽的起源地',       goods:'胡椒、肉桂、宝石',     cost:50,  reward:200, color:'#8e44ad' },
+  egypt:  { id:'egypt',  name:'埃及·亚历山大港', x:640, y:250, desc:'金字塔与法老的文明古国',   goods:'纸莎草、黄金、香料',   cost:150, reward:500, color:'#f1c40f' },
+  malacca:{ id:'malacca',name:'马六甲海峡',     x:830, y:330, desc:'东西方贸易咽喉要道',       goods:'锡、檀香木、珍珠',     cost:30,  reward:100, color:'#2ecc71' },
+  africa: { id:'africa', name:'东非·摩加迪沙港', x:660, y:320, desc:'非洲之角，象牙与黄金之地', goods:'象牙、黄金、没药',     cost:100, reward:350, color:'#3498db' }
+};
+
+// ===========================
+// PERSISTENCE
+// ===========================
+function saveState() {
+  const data = { ...gameState, storedPassword };
+  localStorage.setItem('navgame_state', JSON.stringify(data));
+}
+function loadState() {
+  const raw = localStorage.getItem('navgame_state');
+  if (raw) {
+    try {
+      const data = JSON.parse(raw);
+      storedPassword = data.storedPassword || DEFAULT_PASSWORD;
+      delete data.storedPassword;
+      gameState = { ...gameState, ...data };
+      return true;
+    } catch(e) { return false; }
+  }
+  return false;
+}
+
+// ===========================
+// TOAST
+// ===========================
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ===========================
+// LOGIN
+// ===========================
+function doLogin() {
+  const id = document.getElementById('login-id').value.trim().toLowerCase();
+  const pw = document.getElementById('login-pw').value.trim();
+  if (!id) { toast('请输入学号缩写', 'warning'); return; }
+  if (pw !== storedPassword) { toast('密码错误！', 'error'); return; }
+
+  // Load or init state
+  const hadState = loadState();
+  if (!hadState || gameState.userId !== id) {
+    // New user or different user
+    gameState.userId = id;
+    gameState.career = null;
+    gameState.badges = 5;
+    gameState.points = 1250;
+    gameState.teamPoints = 200;
+    gameState.unlockedPorts = ['china'];
+    gameState.history = [];
+    gameState.completedTasks = [];
+    gameState.purchasedItems = [];
+    gameState.donatedTotal = 0;
+  }
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').classList.add('active');
+  initApp();
+}
+
+// ===========================
+// APP INIT
+// ===========================
+function initApp() {
+  updateCareerDisplay();
+  renderMap();
+  updateLockOverlay();
+  updateHeaderBadges();
+  switchPanel('profile');
+  setupMapInteractions();
+
+  // Career selection check
+  if (!gameState.career) {
+    showCareerModal();
+  }
+  saveState();
+}
+
+function updateCareerDisplay() {
+  const c = gameState.career ? CAREERS[gameState.career] : null;
+  const lbl = document.getElementById('current-user-label');
+  if (c) {
+    lbl.innerHTML = `${c.icon} ${c.name}`;
+  } else {
+    lbl.innerHTML = '❓ 未选择职业';
+  }
+}
+
+function updateHeaderBadges() {
+  document.getElementById('header-badges').textContent = `🏅 ${gameState.badges}/12`;
+}
+
+function updateLockOverlay() {
+  const overlay = document.getElementById('map-lock-overlay');
+  if (gameState.badges >= 12) {
+    overlay.classList.add('unlocked');
+  } else {
+    overlay.classList.remove('unlocked');
+  }
+}
+
+function hasPassport() { return gameState.badges >= 12; }
+
+function showPassportLockMsg() {
+  toast('🔴 航海证未激活！请前往任务中心完成任务赚取12个徽章以登船。', 'warning');
+  switchPanel('tasks');
+}
+
+// ===========================
+// CAREER MODAL
+// ===========================
+function showCareerModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'career-modal';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h3>⚓ 选择你的航海职业</h3>
+      <p style="color:#8b9db5;margin-bottom:20px;">职业一经选择不可更改（可通过商店转职卡更换）</p>
+      <div>
+        <div class="career-option" data-career="captain">
+          <div class="icon">🧑‍✈️</div>
+          <div class="name">见习船长</div>
+          <div style="font-size:0.7rem;color:#8b9db5;">领航专精 · 航行折扣</div>
+        </div>
+        <div class="career-option" data-career="cook">
+          <div class="icon">🍳</div>
+          <div class="name">见习厨师</div>
+          <div style="font-size:0.7rem;color:#8b9db5;">美食制作 · 团队加成</div>
+        </div>
+        <div class="career-option" data-career="sailor">
+          <div class="icon">🔧</div>
+          <div class="name">见习水手</div>
+          <div style="font-size:0.7rem;color:#8b9db5;">维修维护 · 防御专精</div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelectorAll('.career-option').forEach(el => {
+    el.addEventListener('click', function() {
+      const career = this.dataset.career;
+      gameState.career = career;
+      updateCareerDisplay();
+      addHistory(`选择职业: ${CAREERS[career].name}`);
+      saveState();
+      document.getElementById('career-modal').remove();
+      switchPanel('profile');
+      toast(`⚓ 欢迎加入！你已成为 ${CAREERS[career].name}！`, 'success');
+    });
+  });
+}
+
+// ===========================
+// HISTORY
+// ===========================
+function addHistory(action) {
+  const now = new Date();
+  const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  gameState.history.unshift({ time, action });
+  if (gameState.history.length > 50) gameState.history.pop();
+  saveState();
+}
+
+// ===========================
+// RIGHT PANEL SWITCHING
+// ===========================
+function switchPanel(name) {
+  document.querySelectorAll('#panel-nav .nav-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`[data-panel="${name}"]`);
+  if (btn) btn.classList.add('active');
+
+  const container = document.getElementById('panel-content');
+  switch(name) {
+    case 'profile': renderProfile(container); break;
+    case 'team': renderTeam(container); break;
+    case 'events': renderEvents(container); break;
+    case 'shop': renderShop(container); break;
+    case 'tasks': renderTasks(container); break;
+    case 'settings': renderSettings(container); break;
+  }
+}
+
+document.getElementById('panel-nav').addEventListener('click', function(e) {
+  const btn = e.target.closest('.nav-btn');
+  if (!btn) return;
+  switchPanel(btn.dataset.panel);
+});
+
+// ===========================
+// PROFILE PANEL
+// ===========================
+function renderProfile(container) {
+  container.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-row">
+        <span class="stat-label">👤 账号</span>
+        <span class="stat-value" style="color:#e0d5c0;">${gameState.userId}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🎭 职业</span>
+        <span class="stat-value" style="color:#e0d5c0;">${gameState.career ? CAREERS[gameState.career].icon + ' ' + CAREERS[gameState.career].name : '未选择'}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">⛵ 航海积分</span>
+        <span class="stat-value gold">${gameState.points}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🏅 徽章数</span>
+        <span class="stat-value teal">${gameState.badges} / 12</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🛡️ 航海证状态</span>
+        <span class="stat-value ${hasPassport() ? 'teal' : 'coral'}">${hasPassport() ? '🟢 登船中' : '🔴 下船'}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">🚢 已解锁港口</span>
+        <span class="stat-value teal">${gameState.unlockedPorts.length} 个</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">💰 已捐献积分</span>
+        <span class="stat-value gold">${gameState.donatedTotal}</span>
+      </div>
+    </div>
+    <div style="font-weight:700;color:var(--gold);margin-bottom:10px;">📜 最近动态</div>
+    ${gameState.history.length === 0 ? '<p style="color:#8b9db5;font-size:0.85rem;">暂无动态记录</p>' : ''}
+    ${gameState.history.slice(0, 5).map(h => `
+      <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
+        <span style="color:#556677;">${h.time}</span> &nbsp; ${h.action}
+      </div>
+    `).join('')}
+  `;
+}
+
+// ===========================
+// TEAM PANEL
+// ===========================
+function renderTeam(container) {
+  container.innerHTML = `
+    <div class="stat-card" style="text-align:center;">
+      <div style="font-size:0.85rem;color:#8b9db5;">👥 团队积分池</div>
+      <div style="font-size:2.5rem;font-weight:900;color:var(--gold);">${gameState.teamPoints}</div>
+      <div style="font-size:0.75rem;color:#556677;">用于起航消耗 & 事件防御</div>
+    </div>
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:12px;">🎁 捐献积分到团队池</div>
+      <div style="display:flex;gap:8px;">
+        <input type="number" id="donate-amount" class="login-input" placeholder="捐献数量" min="1" max="${gameState.points}" value="10" style="flex:1;margin:0;">
+        <button class="btn-primary" onclick="donateToTeam()">捐献</button>
+      </div>
+      <p style="font-size:0.72rem;color:#556677;margin-top:6px;">你当前拥有 ⛵ ${gameState.points} 积分</p>
+    </div>
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:8px;">📊 捐献排行榜</div>
+      <div class="stat-row">
+        <span>🥇 小明</span><span style="color:var(--gold);">350 分</span>
+      </div>
+      <div class="stat-row">
+        <span>🥈 小红</span><span style="color:var(--gold);">280 分</span>
+      </div>
+      <div class="stat-row">
+        <span>🥉 小刚</span><span style="color:var(--gold);">150 分</span>
+      </div>
+      <div class="stat-row">
+        <span>🏅 你 (${gameState.userId})</span><span style="color:var(--teal);">${gameState.donatedTotal} 分</span>
+      </div>
+    </div>
+  `;
+}
+
+function donateToTeam() {
+  const amount = parseInt(document.getElementById('donate-amount').value) || 0;
+  if (amount <= 0) { toast('请输入有效捐献数量', 'warning'); return; }
+  if (amount > gameState.points) { toast('积分不足！', 'error'); return; }
+  if (!confirm(`确认捐献 ${amount} 积分到团队池吗？此操作不可撤销。`)) return;
+  gameState.points -= amount;
+  gameState.teamPoints += amount;
+  gameState.donatedTotal += amount;
+  addHistory(`捐献 ${amount} 积分到团队池`);
+  saveState();
+  toast(`成功捐献 ${amount} 积分！`, 'success');
+  switchPanel('team');
+}
+
+// ===========================
+// EVENTS PANEL
+// ===========================
+function renderEvents(container) {
+  container.innerHTML = `
+    <div class="event-card">
+      <div class="event-icon">⚔️</div>
+      <div class="event-info">
+        <div class="event-title">海盗来袭！</div>
+        <div class="event-desc">一伙海盗正在逼近！需要团队池 ≥ 80 积分才能击退。防御成功每人+30积分。</div>
+      </div>
+      <button class="btn-danger" onclick="triggerPirateEvent()">防御</button>
+    </div>
+    <div class="event-card">
+      <div class="event-icon">🍽️</div>
+      <div class="event-info">
+        <div class="event-title">美食制作大赛</div>
+        <div class="event-desc">食堂举办美食大赛！消耗 20 个人积分参与，有机会获得 50 积分奖励。</div>
+      </div>
+      <button class="btn-primary" onclick="triggerCookingEvent()">参与</button>
+    </div>
+    <div class="event-card">
+      <div class="event-icon">🌊</div>
+      <div class="event-info">
+        <div class="event-title">风暴预警</div>
+        <div class="event-desc">前方海域有风暴！团队池 ≥ 50 积分可启动防护，全员获得 +1 徽章。</div>
+      </div>
+      <button class="btn-secondary" onclick="triggerStormEvent()">启动防护</button>
+    </div>
+  `;
+}
+
+function triggerPirateEvent() {
+  if (gameState.teamPoints < 80) { toast('团队积分不足 80，无法防御海盗！', 'error'); return; }
+  gameState.teamPoints -= 80;
+  gameState.points += 30;
+  addHistory('参与海盗防御事件，获得 +30 积分');
+  saveState();
+  toast('⚔️ 成功击退海盗！获得 30 积分奖励！', 'success');
+  switchPanel('events');
+}
+
+function triggerCookingEvent() {
+  if (gameState.points < 20) { toast('个人积分不足 20！', 'error'); return; }
+  gameState.points -= 20;
+  const reward = Math.random() > 0.5 ? 50 : 15;
+  gameState.points += reward;
+  addHistory(`参加美食大赛，获得 +${reward} 积分`);
+  saveState();
+  toast(`🍽️ 美食大赛！获得 ${reward} 积分！`, 'success');
+  switchPanel('events');
+}
+
+function triggerStormEvent() {
+  if (gameState.teamPoints < 50) { toast('团队积分不足 50！', 'error'); return; }
+  gameState.teamPoints -= 50;
+  gameState.badges = Math.min(gameState.badges + 1, 20);
+  addHistory('团队防御风暴成功，获得 +1 徽章');
+  saveState();
+  updateLockOverlay();
+  updateHeaderBadges();
+  toast('🌊 风暴防护成功！全员获得 +1 徽章！', 'success');
+  switchPanel('events');
+  switchPanel('events');
+}
+
+// ===========================
+// SHOP PANEL
+// ===========================
+const SHOP_ITEMS = [
+  // 角色类
+  { id:'career_change', cat:'role', name:'转职卡', icon:'🔄', price:200, desc:'更换一次职业', action:'career_change' },
+  { id:'captain_hat', cat:'role', name:'船长帽', icon:'🎩', price:100, desc:'航行消耗减少 10%', action:'captain_hat' },
+  // 道具类
+  { id:'speed_boost', cat:'prop', name:'加速帆', icon:'⛵', price:80, desc:'下次航行时间减半', action:'speed_boost' },
+  { id:'shield', cat:'prop', name:'防护盾', icon:'🛡️', price:120, desc:'免疫一次海盗袭击损失', action:'shield' },
+  { id:'compass', cat:'prop', name:'黄金罗盘', icon:'🧭', price:300, desc:'解锁所有港口预览权限', action:'compass' },
+  // 食材类
+  { id:'spice', cat:'food', name:'异国香料', icon:'🌶️', price:30, desc:'美食大赛成功率提升', action:'spice' },
+  { id:'tea', cat:'food', name:'龙井茶', icon:'🍵', price:25, desc:'恢复 10 点团队积分', action:'tea' },
+  { id:'rum', cat:'food', name:'朗姆酒', icon:'🍾', price:40, desc:'团队捐献时额外+5', action:'rum' }
+];
+
+function renderShop(container) {
+  const catBtns = `
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="btn-secondary shop-cat-btn active" data-cat="all" style="font-size:0.8rem;">全部</button>
+      <button class="btn-secondary shop-cat-btn" data-cat="role" style="font-size:0.8rem;">🎭 角色</button>
+      <button class="btn-secondary shop-cat-btn" data-cat="prop" style="font-size:0.8rem;">🧰 道具</button>
+      <button class="btn-secondary shop-cat-btn" data-cat="food" style="font-size:0.8rem;">🍲 食材</button>
+    </div>
+    <div id="shop-items-container"></div>
+  `;
+  container.innerHTML = catBtns;
+  renderShopItems('all');
+
+  container.querySelectorAll('.shop-cat-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      container.querySelectorAll('.shop-cat-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      renderShopItems(this.dataset.cat);
+    });
+  });
+}
+
+function renderShopItems(cat) {
+  const items = cat === 'all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i => i.cat === cat);
+  const container = document.getElementById('shop-items-container');
+  if (!container) return;
+  container.innerHTML = items.map(item => `
+    <div class="shop-card">
+      <div class="icon">${item.icon}</div>
+      <div class="info">
+        <div class="name">${item.name}</div>
+        <div style="font-size:0.75rem;color:#8b9db5;">${item.desc}</div>
+        <div class="price">💰 ${item.price} 积分</div>
+      </div>
+      <button class="btn-primary" onclick="purchaseItem('${item.id}')" ${gameState.points < item.price ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
+        ${gameState.purchasedItems.includes(item.id) ? '已拥有' : '兑换'}
+      </button>
+    </div>
+  `).join('');
+}
+
+function purchaseItem(itemId) {
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+  if (gameState.purchasedItems.includes(itemId)) { toast('已拥有此物品！', 'warning'); return; }
+  if (gameState.points < item.price) { toast('积分不足！', 'error'); return; }
+  if (!confirm(`确认花费 ${item.price} 积分兑换「${item.name}」吗？`)) return;
+
+  gameState.points -= item.price;
+  gameState.purchasedItems.push(itemId);
+  addHistory(`商店兑换: ${item.name} (-${item.price} 积分)`);
+
+  // Handle special actions
+  if (item.action === 'career_change') {
+    gameState.career = null;
+    addHistory('使用转职卡，重新选择职业');
+    saveState();
+    showCareerModal();
+    return;
+  }
+  if (item.action === 'tea') {
+    gameState.teamPoints += 10;
+    addHistory('使用龙井茶，团队积分 +10');
+  }
+
+  saveState();
+  toast(`✅ 成功兑换「${item.name}」！`, 'success');
+  switchPanel('shop');
+}
+
+// ===========================
+// TASKS PANEL
+// ===========================
+const DAILY_TASKS = [
+  { id:'t1', name:'晨读打卡', desc:'早晨 7:30 前到教室朗读', reward:1, icon:'📖' },
+  { id:'t2', name:'课堂积极发言', desc:'当日课堂举手回答 3 次', reward:2, icon:'🙋' },
+  { id:'t3', name:'作业全对', desc:'当日作业正确率 100%', reward:2, icon:'✅' },
+  { id:'t4', name:'帮助同学', desc:'帮助一位同学解决学习问题', reward:1, icon:'🤝' },
+  { id:'t5', name:'课外阅读', desc:'阅读课外书籍 30 分钟以上', reward:1, icon:'📚' },
+  { id:'t6', name:'体育锻炼', desc:'完成 30 分钟体育锻炼', reward:1, icon:'🏃' },
+  { id:'t7', name:'班级值日', desc:'认真完成当日值日任务', reward:1, icon:'🧹' },
+  { id:'t8', name:'优秀表现', desc:'被老师点名表扬', reward:2, icon:'⭐' }
+];
+
+function renderTasks(container) {
+  const today = new Date().toDateString();
+  container.innerHTML = `
+    <div style="font-weight:700;color:var(--gold);margin-bottom:12px;">📋 每日任务（完成获得徽章）</div>
+    <p style="font-size:0.78rem;color:#556677;margin-bottom:14px;">📅 ${today} | 已完成: ${gameState.completedTasks.length}/${DAILY_TASKS.length}</p>
+    <div id="tasks-list"></div>
+  `;
+  renderTaskItems();
+
+  // Add reset tasks button
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn-secondary';
+  resetBtn.textContent = '🔄 刷新今日任务';
+  resetBtn.style.cssText = 'margin-top:16px;width:100%;';
+  resetBtn.addEventListener('click', () => {
+    gameState.completedTasks = [];
+    saveState();
+    renderTaskItems();
+    toast('任务已刷新！', 'success');
+  });
+  container.appendChild(resetBtn);
+}
+
+function renderTaskItems() {
+  const list = document.getElementById('tasks-list');
+  if (!list) return;
+  list.innerHTML = DAILY_TASKS.map(t => {
+    const done = gameState.completedTasks.includes(t.id);
+    return `
+      <div class="task-card" style="${done ? 'opacity:0.5;' : ''}">
+        <span style="font-size:1.5rem;">${t.icon}</span>
+        <div class="task-info">
+          <div class="task-name">${t.name}</div>
+          <div style="font-size:0.75rem;color:#8b9db5;">${t.desc}</div>
+          <div class="task-reward">🏅 +${t.reward} 徽章</div>
+        </div>
+        ${done
+          ? '<span style="color:var(--teal);font-weight:700;">✅ 已完成</span>'
+          : `<button class="btn-primary" onclick="completeTask('${t.id}')">提交完成</button>`
+        }
+      </div>
+    `;
+  }).join('');
+}
+
+function completeTask(taskId) {
+  if (gameState.completedTasks.includes(taskId)) return;
+  const task = DAILY_TASKS.find(t => t.id === taskId);
+  if (!task) return;
+
+  gameState.completedTasks.push(taskId);
+  gameState.badges = Math.min(gameState.badges + task.reward, 20);
+  gameState.points += task.reward * 10;
+  addHistory(`完成任务: ${task.name} (+${task.reward} 徽章, +${task.reward*10} 积分)`);
+  saveState();
+  updateLockOverlay();
+  updateHeaderBadges();
+
+  if (gameState.badges >= 12 && !hasPassport()) {
+    // Just crossed the threshold
+  }
+
+  renderTaskItems();
+  toast(`✅ ${task.name} 完成！+${task.reward} 徽章`, 'success');
+
+  if (gameState.badges >= 12) {
+    setTimeout(() => {
+      toast('🎉 恭喜！航海证已激活！你现在可以起航探索世界了！', 'success');
+    }, 800);
+  }
+}
+
+// ===========================
+// SETTINGS PANEL
+// ===========================
+function renderSettings(container) {
+  container.innerHTML = `
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:12px;">🔑 修改密码</div>
+      <input type="password" id="old-pw" class="login-input" placeholder="当前密码">
+      <input type="password" id="new-pw" class="login-input" placeholder="新密码">
+      <input type="password" id="confirm-pw" class="login-input" placeholder="确认新密码">
+      <button class="btn-primary" onclick="changePassword()" style="width:100%;">修改密码</button>
+    </div>
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:12px;">🎭 当前职业</div>
+      <p style="font-size:0.9rem;color:#8b9db5;">${gameState.career ? CAREERS[gameState.career].icon + ' ' + CAREERS[gameState.career].name : '未选择'}</p>
+      <p style="font-size:0.75rem;color:#556677;">职业不可直接更改，请在商店购买转职卡</p>
+    </div>
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:12px;">📊 数据管理</div>
+      <button class="btn-danger" onclick="resetAllData()" style="width:100%;">🗑️ 重置所有数据</button>
+    </div>
+    <div class="stat-card">
+      <div style="font-weight:700;margin-bottom:12px;">👨‍🏫 教师视图</div>
+      <button class="btn-secondary" onclick="toggleTeacherView()" style="width:100%;">📊 切换到教师数据看板</button>
+    </div>
+  `;
+}
+
+function changePassword() {
+  const oldPw = document.getElementById('old-pw').value.trim();
+  const newPw = document.getElementById('new-pw').value.trim();
+  const confirmPw = document.getElementById('confirm-pw').value.trim();
+  if (oldPw !== storedPassword) { toast('当前密码错误！', 'error'); return; }
+  if (!newPw || newPw.length < 4) { toast('新密码至少 4 位！', 'warning'); return; }
+  if (newPw !== confirmPw) { toast('两次新密码不一致！', 'warning'); return; }
+  storedPassword = newPw;
+  saveState();
+  toast('✅ 密码修改成功！', 'success');
+  switchPanel('settings');
+}
+
+function resetAllData() {
+  if (!confirm('⚠️ 确认重置所有数据吗？此操作不可撤销！')) return;
+  if (!confirm('再次确认：所有积分、徽章、进度将被清空。')) return;
+  localStorage.removeItem('navgame_state');
+  location.reload();
+}
+
+// ===========================
+// SVG MAP RENDERING
+// ===========================
+let mapTransform = { x: 0, y: 0, scale: 1 };
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+
+function renderMap() {
+  const svg = document.getElementById('world-map');
+  // Generate world map paths
+  const routes = [];
+  // China -> Japan
+  routes.push({ from: PORTS.china, to: PORTS.japan });
+  // China -> India
+  routes.push({ from: PORTS.china, to: PORTS.india });
+  // China -> Malacca
+  routes.push({ from: PORTS.china, to: PORTS.malacca });
+  // India -> Egypt
+  routes.push({ from: PORTS.india, to: PORTS.egypt });
+  // India -> Africa
+  routes.push({ from: PORTS.india, to: PORTS.africa });
+  // Malacca -> India
+  routes.push({ from: PORTS.malacca, to: PORTS.india });
+
+  let html = '';
+
+  // Draw ocean background with grid
+  html += `<defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="oceanGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0f3460" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0a1628" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="portGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="textGlow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>`;
+
+  // Ocean background
+  html += `<rect width="1200" height="600" fill="url(#oceanGlow)"/>`;
+  html += `<rect width="1200" height="600" fill="url(#grid)"/>`;
+
+  // Draw simplified continent shapes
+  html += `
+    <!-- East Asia / China -->
+    <path d="M750,150 Q800,130 880,140 Q920,150 940,180 Q950,220 920,260 Q890,300 850,310 Q800,320 760,290 Q720,250 730,190 Z"
+          fill="rgba(46,125,50,0.2)" stroke="rgba(46,125,50,0.4)" stroke-width="1"/>
+    <!-- Japan -->
+    <ellipse cx="990" cy="160" rx="25" ry="50" fill="rgba(46,125,50,0.15)" stroke="rgba(46,125,50,0.3)" stroke-width="1"/>
+    <!-- India subcontinent -->
+    <path d="M760,260 Q790,240 820,260 L830,320 Q820,360 790,370 Q760,360 750,320 Z"
+          fill="rgba(46,125,50,0.2)" stroke="rgba(46,125,50,0.4)" stroke-width="1"/>
+    <!-- Middle East / Egypt -->
+    <path d="M620,220 Q660,210 680,240 Q690,270 660,290 Q630,300 610,280 Q590,260 600,230 Z"
+          fill="rgba(194,178,128,0.15)" stroke="rgba(194,178,128,0.3)" stroke-width="1"/>
+    <!-- East Africa -->
+    <path d="M640,300 Q670,290 680,330 Q670,370 640,380 Q610,370 600,340 Z"
+          fill="rgba(46,125,50,0.2)" stroke="rgba(46,125,50,0.4)" stroke-width="1"/>
+    <!-- Southeast Asia / Malacca -->
+    <path d="M820,300 Q850,290 860,320 Q870,360 840,380 Q810,370 800,340 Z"
+          fill="rgba(46,125,50,0.15)" stroke="rgba(46,125,50,0.3)" stroke-width="1"/>
+    <!-- Europe hint -->
+    <path d="M500,120 Q580,100 620,140 Q640,180 620,210 Q580,230 520,200 Q480,170 490,130 Z"
+          fill="rgba(100,149,237,0.1)" stroke="rgba(100,149,237,0.2)" stroke-width="1"/>
+    <!-- Ocean waves -->
+    <path d="M100,400 Q200,390 300,400 Q400,410 500,400 Q600,390 700,400 Q800,410 900,400 Q1000,390 1100,400"
+          fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="2"/>
+    <path d="M50,450 Q150,440 250,450 Q350,460 450,450 Q550,440 650,450 Q750,460 850,450 Q950,440 1050,450"
+          fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+  `;
+
+  // Draw sea routes
+  routes.forEach((r, idx) => {
+    const fromUnlocked = gameState.unlockedPorts.includes(r.from.id);
+    const toUnlocked = gameState.unlockedPorts.includes(r.to.id);
+    const routeActive = fromUnlocked;
+    html += `<line x1="${r.from.x}" y1="${r.from.y}" x2="${r.to.x}" y2="${r.to.y}"
+              stroke="${routeActive ? 'rgba(212,168,67,0.3)' : 'rgba(255,255,255,0.06)'}"
+              stroke-width="${routeActive ? '1.5' : '0.8'}"
+              stroke-dasharray="${routeActive ? '8,4' : '4,8'}"
+              data-route="${r.from.id}-${r.to.id}" class="sea-route"/>`;
+  });
+
+  // Draw ports
+  Object.values(PORTS).forEach(port => {
+    const unlocked = gameState.unlockedPorts.includes(port.id);
+    const size = unlocked ? 8 : 5;
+    const color = unlocked ? port.color : '#555';
+    html += `
+      <g class="port-group" data-port="${port.id}" style="cursor:pointer;">
+        <circle cx="${port.x}" cy="${port.y}" r="${size + 6}" fill="${color}" opacity="0.15"
+                filter="url(#portGlow)" class="port-glow"/>
+        <circle cx="${port.x}" cy="${port.y}" r="${size}" fill="${color}" stroke="#fff"
+                stroke-width="${unlocked ? '1.5' : '0.5'}" class="port-dot"/>
+        <text x="${port.x}" y="${port.y - size - 6}" text-anchor="middle"
+              fill="${unlocked ? '#e0d5c0' : '#555'}" font-size="${unlocked ? '10' : '8'}"
+              font-weight="${unlocked ? '700' : '400'}" class="port-label"
+              ${unlocked ? 'filter="url(#textGlow)"' : ''}>${port.name}</text>
+        ${unlocked ? `<text x="${port.x}" y="${port.y + size + 14}" text-anchor="middle"
+              fill="${color}" font-size="16" class="port-emoji">⚓</text>` : ''}
+      </g>
+    `;
+  });
+
+  // Draw Chinese territory highlight + starting port marker
+  html += `
+    <circle cx="${PORTS.china.x}" cy="${PORTS.china.y}" r="20" fill="none"
+            stroke="#e74c3c" stroke-width="2" opacity="0.3">
+      <animate attributeName="r" values="18;26;18" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.3;0.1;0.3" dur="3s" repeatCount="indefinite"/>
+    </circle>
+  `;
+
+  // Compass rose bottom-right
+  html += `
+    <g transform="translate(1100,500) scale(0.8)" opacity="0.6">
+      <circle cx="0" cy="0" r="40" fill="none" stroke="rgba(212,168,67,0.4)" stroke-width="1"/>
+      <polygon points="0,-35 5,-8 0,-12 -5,-8" fill="rgba(212,168,67,0.6)"/>
+      <polygon points="0,35 5,8 0,12 -5,8" fill="rgba(255,255,255,0.3)"/>
+      <polygon points="-35,0 -8,5 -12,0 -8,-5" fill="rgba(255,255,255,0.3)"/>
+      <polygon points="35,0 8,5 12,0 8,-5" fill="rgba(255,255,255,0.3)"/>
+      <text x="0" y="-42" text-anchor="middle" fill="rgba(212,168,67,0.7)" font-size="10">N</text>
+    </g>
+  `;
+
+  svg.innerHTML = html;
+  setupPortInteractions();
+}
+
+function setupMapInteractions() {
+  const mapArea = document.getElementById('map-area');
+
+  // Mouse drag
+  mapArea.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.port-group')) return;
+    isDragging = true;
+    dragStart = { x: e.clientX - mapTransform.x, y: e.clientY - mapTransform.y };
+    mapArea.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    mapTransform.x = e.clientX - dragStart.x;
+    mapTransform.y = e.clientY - dragStart.y;
+    applyMapTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    document.getElementById('map-area').style.cursor = 'grab';
+  });
+
+  // Scroll zoom
+  mapArea.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    mapTransform.scale = Math.max(0.5, Math.min(3, mapTransform.scale + delta));
+    applyMapTransform();
+  });
+}
+
+function applyMapTransform() {
+  const svg = document.getElementById('world-map');
+  svg.style.transform = `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})`;
+  svg.style.transformOrigin = 'center center';
+}
+
+function setupPortInteractions() {
+  const tooltip = document.getElementById('port-tooltip');
+  const mapArea = document.getElementById('map-area');
+
+  document.querySelectorAll('.port-group').forEach(group => {
+    const portId = group.dataset.port;
+
+    group.addEventListener('mouseenter', (e) => {
+      const port = PORTS[portId];
+      const unlocked = gameState.unlockedPorts.includes(portId);
+      const canUnlock = hasPassport() && !unlocked && gameState.teamPoints >= port.cost;
+
+      tooltip.innerHTML = `
+        <h4>${unlocked ? '✅ ' : '🔒 '}${port.name}</h4>
+        <p class="detail">🏙️ ${port.desc}</p>
+        <p class="detail">📦 特产: ${port.goods}</p>
+        <p class="cost">${unlocked ? '🟢 已解锁' : `🔒 需团队积分: ${port.cost} | 奖励: ${port.reward} 积分`}</p>
+        ${canUnlock ? '<p style="color:#2ecc71;font-weight:700;margin-top:4px;">🟢 可起航！点击港口出发</p>' : ''}
+        ${!hasPassport() && !unlocked ? '<p style="color:#e05a4f;font-weight:700;margin-top:4px;">🔴 需要航海证（12徽章）</p>' : ''}
+      `;
+      tooltip.classList.add('visible');
+    });
+
+    group.addEventListener('mousemove', (e) => {
+      const rect = mapArea.getBoundingClientRect();
+      tooltip.style.left = (e.clientX - rect.left + 20) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    });
+
+    group.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+    });
+
+    group.addEventListener('click', (e) => {
+      const port = PORTS[portId];
+      const unlocked = gameState.unlockedPorts.includes(portId);
+
+      if (unlocked) {
+        toast(`📍 ${port.name} - 已到达过的港口`, 'warning');
+        return;
+      }
+
+      if (!hasPassport()) {
+        showPassportLockMsg();
+        return;
+      }
+
+      if (gameState.teamPoints < port.cost) {
+        toast(`团队积分不足！需要 ${port.cost} 点，当前 ${gameState.teamPoints} 点`, 'error');
+        return;
+      }
+
+      // Check if there's a path from an unlocked port
+      const hasRoute = Object.values(PORTS).some(p =>
+        gameState.unlockedPorts.includes(p.id) &&
+        (Math.abs(p.x - port.x) < 300 || p.id === 'china')
+      );
+      if (!hasRoute && portId !== 'china') {
+        toast('尚未发现通往此港口的航线！请先解锁沿途港口。', 'warning');
+        return;
+      }
+
+      // Start sailing
+      startSailing(port);
+    });
+  });
+}
+
+// ===========================
+// SAILING ANIMATION
+// ===========================
+let isSailing = false;
+
+function startSailing(targetPort) {
+  if (isSailing) { toast('正在航行中，请等待！', 'warning'); return; }
+  if (!hasPassport()) { showPassportLockMsg(); return; }
+  if (gameState.teamPoints < targetPort.cost) {
+    toast(`团队积分不足！需要 ${targetPort.cost} 点`, 'error');
+    return;
+  }
+
+  isSailing = true;
+  const duration = 5000 + Math.random() * 5000; // 5-10 seconds
+  const startTime = Date.now();
+
+  // Find starting port (nearest unlocked)
+  let startPort = PORTS.china;
+  let minDist = Infinity;
+  gameState.unlockedPorts.forEach(pid => {
+    const p = PORTS[pid];
+    const dist = Math.hypot(p.x - targetPort.x, p.y - targetPort.y);
+    if (dist < minDist) { minDist = dist; startPort = p; }
+  });
+
+  // Show progress container
+  const progressContainer = document.getElementById('sail-progress-container');
+  const progressFill = document.getElementById('sail-progress-fill');
+  const progressText = document.getElementById('sail-progress-text');
+  const sailBoat = document.getElementById('sail-boat');
+
+  progressContainer.classList.add('active');
+  progressFill.style.width = '0%';
+  progressText.textContent = `⛵ 航行中: ${startPort.name} → ${targetPort.name}...`;
+  sailBoat.style.display = 'block';
+
+  // Position boat at start
+  const mapArea = document.getElementById('map-area');
+  const mapRect = mapArea.getBoundingClientRect();
+
+  function updateBoatPosition(progress) {
+    const sx = startPort.x / 1200 * mapRect.width;
+    const sy = startPort.y / 600 * mapRect.height;
+    const tx = targetPort.x / 1200 * mapRect.width;
+    const ty = targetPort.y / 600 * mapRect.height;
+    const cx = sx + (tx - sx) * progress + mapTransform.x;
+    const cy = sy + (ty - sy) * progress + Math.sin(progress * Math.PI) * -30 + mapTransform.y;
+    sailBoat.style.left = (mapRect.left + cx) + 'px';
+    sailBoat.style.top = (mapRect.top + cy) + 'px';
+    sailBoat.style.transform = `rotate(${-15 + progress * 30}deg)`;
+  }
+
+  updateBoatPosition(0);
+
+  function animate() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    progressFill.style.width = (progress * 100) + '%';
+    updateBoatPosition(progress);
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Arrived!
+      gameState.teamPoints -= targetPort.cost;
+      gameState.points += targetPort.reward;
+      gameState.unlockedPorts.push(targetPort.id);
+      addHistory(`航行抵达 ${targetPort.name} (-${targetPort.cost} 团队积分, +${targetPort.reward} 积分)`);
+      saveState();
+      progressContainer.classList.remove('active');
+      sailBoat.style.display = 'none';
+      isSailing = false;
+      renderMap();
+      updateHeaderBadges();
+      toast(`🎉 抵达 ${targetPort.name}！获得 ${targetPort.reward} 积分奖励！`, 'success');
+      switchPanel('profile');
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+// ===========================
+// TEACHER DASHBOARD
+// ===========================
+let teacherViewActive = false;
+
+const MOCK_STUDENTS = [
+  { id:'yyt', name:'杨同学', career:'captain', points:1250, badges:9, donated:120, unlocked:3, hasPassport:false },
+  { id:'xmx', name:'小明', career:'cook', points:890, badges:14, donated:350, unlocked:5, hasPassport:true },
+  { id:'xhm', name:'小红', career:'sailor', points:1100, badges:12, donated:280, unlocked:4, hasPassport:true },
+  { id:'xgm', name:'小刚', career:'captain', points:720, badges:8, donated:150, unlocked:2, hasPassport:false },
+  { id:'xxh', name:'小花', career:'cook', points:1560, badges:15, donated:420, unlocked:6, hasPassport:true },
+  { id:'xlm', name:'小丽', career:'sailor', points:680, badges:6, donated:80, unlocked:1, hasPassport:false },
+  { id:'xqg', name:'小强', career:'captain', points:1900, badges:16, donated:500, unlocked:6, hasPassport:true },
+  { id:'xmm', name:'小美', career:'cook', points:540, badges:4, donated:40, unlocked:1, hasPassport:false }
+];
+
+function toggleTeacherView() {
+  teacherViewActive = !teacherViewActive;
+  if (teacherViewActive) {
+    document.getElementById('main-app').classList.remove('active');
+    document.getElementById('teacher-dashboard').classList.add('active');
+    renderTeacherDashboard();
+  } else {
+    document.getElementById('main-app').classList.add('active');
+    document.getElementById('teacher-dashboard').classList.remove('active');
+    initApp();
+  }
+}
+
+function renderTeacherDashboard() {
+  // Merge current user into mock data
+  let allStudents = [...MOCK_STUDENTS];
+  const myIdx = allStudents.findIndex(s => s.id === gameState.userId);
+  const myData = {
+    id: gameState.userId,
+    name: gameState.userId.toUpperCase(),
+    career: gameState.career || 'captain',
+    points: gameState.points,
+    badges: gameState.badges,
+    donated: gameState.donatedTotal,
+    unlocked: gameState.unlockedPorts.length,
+    hasPassport: hasPassport()
+  };
+  if (myIdx >= 0) {
+    allStudents[myIdx] = myData;
+  } else {
+    allStudents.unshift(myData);
+  }
+
+  const totalPoints = allStudents.reduce((s, st) => s + st.points, 0);
+  const totalBadges = allStudents.reduce((s, st) => s + st.badges, 0);
+  const totalUnlocked = allStudents.reduce((s, st) => s + st.unlocked, 0);
+  const boardedCount = allStudents.filter(s => s.hasPassport).length;
+
+  const container = document.getElementById('teacher-body-content');
+  container.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">👥 班级总人数</div>
+      <div class="kpi-value">${allStudents.length}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">⛵ 总积分池</div>
+      <div class="kpi-value">${totalPoints}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🏅 总徽章数</div>
+      <div class="kpi-value">${totalBadges}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🟢 已登船人数</div>
+      <div class="kpi-value">${boardedCount}/${allStudents.length}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🚢 解锁港口总数</div>
+      <div class="kpi-value">${totalUnlocked}</div>
+    </div>
+    <div class="student-table-wrap">
+      <h4 style="color:var(--gold);margin-bottom:12px;">📋 学生列表</h4>
+      <table class="student-table">
+        <thead>
+          <tr>
+            <th>学号</th><th>姓名</th><th>职业</th><th>积分</th><th>徽章</th>
+            <th>已捐献</th><th>解锁港口</th><th>航海证</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allStudents.map(s => `
+            <tr id="student-row-${s.id}">
+              <td>${s.id}</td>
+              <td>${s.name}</td>
+              <td>${s.career ? (CAREERS[s.career]?.icon || '❓') + ' ' + (CAREERS[s.career]?.name || '未知') : '未选择'}</td>
+              <td style="color:var(--gold);font-weight:700;">${s.points}</td>
+              <td style="color:var(--teal);font-weight:700;">${s.badges}</td>
+              <td>${s.donated}</td>
+              <td>${s.unlocked}</td>
+              <td>${s.hasPassport ? '🟢 登船中' : '🔴 下船'}</td>
+              <td>
+                <button class="btn-secondary" style="padding:3px 8px;font-size:0.7rem;margin:2px;"
+                  onclick="teacherAdjustStudent('${s.id}', 10)">+10积分</button>
+                <button class="btn-secondary" style="padding:3px 8px;font-size:0.7rem;margin:2px;"
+                  onclick="teacherAdjustStudent('${s.id}', -10)">-10积分</button>
+                <button class="btn-secondary" style="padding:3px 8px;font-size:0.7rem;margin:2px;"
+                  onclick="teacherGiveBadge('${s.id}')">+1徽章</button>
+                ${!s.hasPassport ? `<button class="btn-danger" style="padding:3px 8px;font-size:0.7rem;margin:2px;"
+                  onclick="teacherForceBoard('${s.id}')">强制登船</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function teacherAdjustStudent(studentId, amount) {
+  if (studentId === gameState.userId) {
+    gameState.points = Math.max(0, gameState.points + amount);
+    addHistory(`教师调整积分 ${amount >= 0 ? '+' : ''}${amount}`);
+  }
+  // Update mock data
+  const student = MOCK_STUDENTS.find(s => s.id === studentId);
+  if (student) student.points = Math.max(0, student.points + amount);
+  saveState();
+  renderTeacherDashboard();
+  toast(`已为 ${studentId} ${amount >= 0 ? '增加' : '扣除'} ${Math.abs(amount)} 积分`, 'success');
+}
+
+function teacherGiveBadge(studentId) {
+  if (studentId === gameState.userId) {
+    gameState.badges = Math.min(gameState.badges + 1, 20);
+    addHistory('教师发放 +1 徽章');
+    updateLockOverlay();
+    updateHeaderBadges();
+  }
+  const student = MOCK_STUDENTS.find(s => s.id === studentId);
+  if (student) student.badges = Math.min(student.badges + 1, 20);
+  saveState();
+  renderTeacherDashboard();
+  toast(`已为 ${studentId} 发放 1 枚徽章`, 'success');
+}
+
+function teacherForceBoard(studentId) {
+  if (studentId === gameState.userId) {
+    gameState.badges = Math.max(gameState.badges, 12);
+    updateLockOverlay();
+    updateHeaderBadges();
+    addHistory('教师强制登船');
+  }
+  const student = MOCK_STUDENTS.find(s => s.id === studentId);
+  if (student) student.badges = Math.max(student.badges, 12);
+  saveState();
+  renderTeacherDashboard();
+  toast(`🚀 已强制 ${studentId} 登船！`, 'success');
+}
+
+function batchAddPoints() {
+  const student = MOCK_STUDENTS.find(s => s.id === gameState.userId);
+  gameState.points += 10;
+  if (student) student.points += 10;
+  addHistory('批量发放 +10 积分');
+  saveState();
+  renderTeacherDashboard();
+  toast('已为全班发放 10 积分', 'success');
+}
+
+function batchAddBadge() {
+  const student = MOCK_STUDENTS.find(s => s.id === gameState.userId);
+  gameState.badges = Math.min(gameState.badges + 1, 20);
+  if (student) student.badges = Math.min(student.badges + 1, 20);
+  updateLockOverlay();
+  updateHeaderBadges();
+  addHistory('批量发放 +1 徽章');
+  saveState();
+  renderTeacherDashboard();
+  toast('已为全班发放 1 枚徽章', 'success');
+}
+
+function forceResetAll() {
+  if (!confirm('⚠️ 强制全员下船？所有学生航海证将失效。')) return;
+  MOCK_STUDENTS.forEach(s => { s.badges = Math.min(s.badges, 8); s.hasPassport = false; });
+  gameState.badges = Math.min(gameState.badges, 8);
+  updateLockOverlay();
+  updateHeaderBadges();
+  saveState();
+  renderTeacherDashboard();
+  toast('已强制全员下船', 'warning');
+}
+
+// ===========================
+// DEBUG PANEL
+// ===========================
+function toggleDebug() {
+  const panel = document.getElementById('debug-panel');
+  const toggleBtn = document.getElementById('debug-toggle-btn');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'flex';
+    toggleBtn.textContent = '🛠 隐藏调试';
+  } else {
+    panel.style.display = 'none';
+    toggleBtn.textContent = '🛠 调试';
+  }
+}
+
+function debugAddPoints(amount) {
+  gameState.points += amount;
+  addHistory(`调试: +${amount} 积分`);
+  saveState();
+  switchPanel('profile');
+  toast(`调试: +${amount} 积分`, 'warning');
+}
+
+function debugAddBadge() {
+  gameState.badges = Math.min(gameState.badges + 1, 20);
+  updateLockOverlay();
+  updateHeaderBadges();
+  addHistory('调试: +1 徽章');
+  saveState();
+  switchPanel('profile');
+  toast('调试: +1 徽章', 'warning');
+}
+
+function debugSuperBadges() {
+  gameState.badges = 15;
+  updateLockOverlay();
+  updateHeaderBadges();
+  addHistory('调试: 超级沙盒 - 直升15徽章');
+  saveState();
+  switchPanel('profile');
+  toast('🚀 超级沙盒: 徽章直升 15！航海证已激活！', 'success');
+}
+
+function debugAddTeam(amount) {
+  gameState.teamPoints += amount;
+  addHistory(`调试: 团队积分 +${amount}`);
+  saveState();
+  switchPanel('team');
+  toast(`调试: 团队积分 +${amount}`, 'warning');
+}
+
+// ===========================
+// KEYBOARD SHORTCUTS
+// ===========================
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'd') {
+    e.preventDefault();
+    toggleDebug();
+  }
+  if (e.key === 'Escape') {
+    // Close any open drawers
+    const overlay = document.querySelector('.drawer-overlay');
+    if (overlay) overlay.remove();
+  }
+});
+
+// ===========================
+// INIT
+// ===========================
+// Check for saved login
+const saved = localStorage.getItem('navgame_state');
+if (saved) {
+  try {
+    const data = JSON.parse(saved);
+    storedPassword = data.storedPassword || DEFAULT_PASSWORD;
+    // Don't auto-login, just pre-fill
+    document.getElementById('login-id').value = data.userId || '';
+  } catch(e) {}
+}
+
+console.log('⚓ 大航海时代 - 班级积分系统 已就绪');
+console.log('   🛠 Ctrl+D 切换调试面板');
+console.log('   📊 教师视图可通过设置页面切换');
+console.log('   🏴‍☠️ 默认账号: yyt / 000000');
+</script>
+
+</body>
+</html>
