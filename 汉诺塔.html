@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 汉诺塔全规则教学与挑战 🎨</title>
+    <style>
+        :root {
+            --primary: #5352ed;
+            --success: #2ed573;
+            --warning: #ffa502;
+            --danger: #ff4757;
+            --bg-color: #f1f2f6;
+            --wood: #d2a679;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        .container {
+            background: white;
+            border-radius: 28px;
+            padding: 35px;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.08);
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #2f3542;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        /* 👑 左右分栏黄金布局 */
+        .workspace {
+            display: flex;
+            gap: 35px;
+            align-items: stretch;
+        }
+
+        /* 左侧：超大动画/游戏主盘区 */
+        .game-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .game-board {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 380px; 
+            background: #fafafa;
+            border-radius: 20px;
+            border-bottom: 24px solid var(--wood); 
+            padding: 0 20px;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
+        }
+
+        /* 右侧：专注引导面板 */
+        .sidebar {
+            flex: 1;
+            background: #f8f9fa;
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #e4e7ed;
+        }
+
+        /* 老师广播站 */
+        .teacher-box {
+            background: #ffeaa7;
+            color: #2f3542;
+            padding: 20px;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1.6;
+            border: 2px solid #ffd32a;
+            box-shadow: 0 4px 12px rgba(255, 211, 42, 0.2);
+            margin-bottom: 25px;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 按钮与控制分区 */
+        .controls-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .btn-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* 基础组件样式 */
+        .peg-container { display: flex; flex-direction: column; align-items: center; width: 30%; height: 100%; cursor: pointer; position: relative; }
+        .peg-line { width: 18px; height: 300px; background-color: var(--wood); border-radius: 9px 9px 0 0; position: absolute; bottom: 0; z-index: 1; transition: background-color 0.2s; }
+        .peg-container.selected .peg-line { background-color: #ffa502; box-shadow: 0 0 20px #ffa502; }
+
+        .disks-area { width: 100%; display: flex; flex-direction: column-reverse; align-items: center; position: absolute; bottom: 0; z-index: 2; padding-bottom: 2px; }
+        
+        /* 盘子尺寸放大，动画过渡时间调慢到 0.8s 移动更平滑 */
+        .disk {
+            height: 34px; 
+            border-radius: 17px;
+            margin-bottom: 3px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.12);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .disk.floating { transform: translateY(-40px); box-shadow: 0 15px 25px rgba(0,0,0,0.25); }
+
+        /* 错误演示效果 */
+        .ghost-disk { border: 3px dashed var(--danger) !important; background: rgba(255, 71, 87, 0.2) !important; color: var(--danger) !important; animation: shake 0.4s infinite; }
+
+        /* 控制台底部条 */
+        .bottom-bar { display: flex; justify-content: space-between; align-items: center; background: #f1f2f6; padding: 15px 25px; border-radius: 16px; font-size: 16px; font-weight: bold; }
+
+        /* 按钮 */
+        button { border: none; padding: 14px 22px; font-size: 16px; border-radius: 50px; cursor: pointer; font-weight: bold; transition: all 0.2s; color: white; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
+        button:active { transform: translateY(0); }
+        button:disabled { background-color: #ced6e0 !important; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+        .btn-primary { background-color: var(--primary); }
+        .btn-rule { background-color: #ff9f43; }
+        .btn-solve { background-color: var(--success); }
+        .btn-audio { background-color: #10ac84; }
+
+        .msg { height: 24px; color: var(--danger); font-weight: bold; text-align: center; font-size: 18px; }
+
+        /* 动效 */
+        @keyframes flash { 0%, 100% { background-color: #fafafa; } 50% { background-color: #ffcbd1; } }
+        .flash-red { animation: flash 0.3s ease 3; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+        .win-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 10; }
+        .win-content { background: white; padding: 40px; border-radius: 24px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎨 趣味汉诺塔：多媒体教学演示厅 🧩</h1>
+    
+    <div class="workspace">
+        <!-- 👈 左侧大屏：专注看动画与操作 -->
+        <div class="game-area">
+            <div id="gameBoard" class="game-board">
+                <div class="peg-container" onclick="clickPeg(0)" id="peg0">
+                    <div class="peg-line"></div>
+                    <div class="disks-area" id="disks0"></div>
+                </div>
+                <!-- 🛠️ 这里已完美修正：id 变更为 peg1 和 disks1 -->
+                <div class="peg-container" onclick="clickPeg(1)" id="peg1">
+                    <div class="peg-line"></div>
+                    <div class="disks-area" id="disks1"></div>
+                </div>
+                <div class="peg-container" onclick="clickPeg(2)" id="peg2">
+                    <div class="peg-line"></div>
+                    <div class="disks-area" id="disks2"></div>
+                </div>
+            </div>
+            
+            <div id="msg" class="msg"></div>
+
+            <div class="bottom-bar">
+                <div>
+                    <label style="color:#57606f;">挑战盘数：</label>
+                    <select id="diskSelect" onchange="initGame()" style="padding: 6px 12px; font-size: 16px; border-radius: 8px; border:2px solid #ced6e0;">
+                        <option value="3" selected>3 个（新手级）</option>
+                        <option value="4">4 个（高手级）</option>
+                        <option value="5">5 个（超级挑战）</option>
+                    </select>
+                </div>
+                <div style="color: var(--primary);">当前移动步数: <span id="moveCount" style="font-size:22px;">0</span></div>
+                <button class="btn-primary" id="btnReset" onclick="initGame()" style="padding: 8px 20px;">🔄 重置</button>
+            </div>
+        </div>
+
+        <!-- 👉 右侧边栏：专注看文字讲解 -->
+        <div class="sidebar">
+            <div id="teacherBox" class="teacher-box">
+                📢 欢迎来到汉诺塔多媒体教室！在让小朋友玩实体玩具前，请先在下方点播规则演示。
+            </div>
+            
+            <div class="controls-group">
+                <div class="btn-stack">
+                    <button class="btn-audio" id="btnBGM" onclick="toggleBGM()">🎵 开启背景配乐</button>
+                    <hr style="width:100%; border:0; border-top:1px solid #e4e7ed; margin: 5px 0;">
+                    <button class="btn-rule" id="btnRule1" onclick="demoRule1()">🎬 演示：铁律一（只拿最上面）</button>
+                    <button class="btn-rule" id="btnRule2" onclick="demoRule2()">🎬 演示：铁律二（一次拿一个）</button>
+                    <button class="btn-rule" id="btnRule3" onclick="demoRule3()">🎬 演示：铁律三（大不能压小）</button>
+                    <button class="btn-solve" id="btnSolve" onclick="startAutoSolveDemo()">🤖 演示：完美通关大顺溜</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="win-modal" id="winModal">
+    <div class="win-content">
+        <h2>🎉 恭喜小朋友成功通关！ 🎉</h2>
+        <p style="font-size: 18px; color: #57606f;">完美达成目标！</p>
+        <button class="btn-solve" onclick="closeModal()">再玩一次</button>
+    </div>
+</div>
+
+<script>
+    const diskColors = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#9b59b6'];
+    let pegs = [[], [], []];
+    let selectedPeg = null;
+    let moveCount = 0;
+    let totalDisks = 3;
+    let isAnimating = false; 
+
+    // ==================== 🎵 网页纯代码音频引擎 ====================
+    let audioCtx = null;
+    let bgmInterval = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playTone(freq, type, duration, volume = 0.1) {
+        try {
+            initAudio();
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        } catch(e) {}
+    }
+
+    function playErrorSound() {
+        try {
+            initAudio();
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(70, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        } catch(e) {}
+    }
+
+    function toggleBGM() {
+        initAudio();
+        if (bgmInterval) {
+            clearInterval(bgmInterval);
+            bgmInterval = null;
+            document.getElementById('btnBGM').innerText = "🎵 开启背景配乐";
+            return;
+        }
+        document.getElementById('btnBGM').innerText = "🔇 关闭背景配乐";
+        
+        const melody = [261.63, 329.63, 392.00, 440.00, 392.00, 329.63]; 
+        let index = 0;
+        bgmInterval = setInterval(() => {
+            playTone(melody[index % melody.length], 'sine', 0.5, 0.02); 
+            index++;
+        }, 800); 
+    }
+
+    // ==================== 🎮 游戏核心渲染逻辑 ====================
+    function updateTeacher(text) {
+        document.getElementById('teacherBox').innerText = "📢 " + text;
+    }
+
+    function initGame() {
+        if(isAnimating) return;
+        totalDisks = parseInt(document.getElementById('diskSelect').value);
+        pegs = [[], [], []];
+        selectedPeg = null;
+        moveCount = 0;
+        document.getElementById('moveCount').innerText = moveCount;
+        document.getElementById('msg').innerText = '';
+        updateTeacher("游戏大盘已准备就绪。请在一旁观看或直接手动挑战！");
+        
+        for(let i=0; i<3; i++) document.getElementById(`peg${i}`).classList.remove('selected');
+        for (let i = totalDisks; i >= 1; i--) pegs[0].push(i);
+        renderDisks();
+        enableControls(true);
+    }
+
+    function renderDisks() {
+        for (let i = 0; i < 3; i++) {
+            const area = document.getElementById(`disks${i}`);
+            area.innerHTML = '';
+            pegs[i].forEach((diskSize, index) => {
+                const disk = document.createElement('div');
+                disk.className = 'disk';
+                disk.innerText = diskSize + " 号盘";
+                const widthPercent = 35 + (diskSize / totalDisks) * 55;
+                disk.style.width = `${widthPercent}%`;
+                disk.style.backgroundColor = diskColors[(diskSize - 1) % diskColors.length];
+                if (selectedPeg === i && index === pegs[i].length - 1) {
+                    disk.classList.add('floating');
+                }
+                area.appendChild(disk);
+            });
+        }
+    }
+
+    function clickPeg(pegIndex) {
+        if (isAnimating) return; 
+        document.getElementById('msg').innerText = '';
+        
+        if (selectedPeg === null) {
+            if (pegs[pegIndex].length === 0) return;
+            selectedPeg = pegIndex;
+            playTone(523.25, 'triangle', 0.15, 0.1); 
+            document.getElementById(`peg${pegIndex}`).classList.add('selected');
+            renderDisks();
+        } else {
+            const sourcePeg = selectedPeg;
+            if (sourcePeg === pegIndex) {
+                document.getElementById(`peg${sourcePeg}`).classList.remove('selected');
+                selectedPeg = null;
+                renderDisks();
+                return;
+            }
+            const movingDisk = pegs[sourcePeg][pegs[sourcePeg].length - 1];
+            const targetTopDisk = pegs[pegIndex][pegs[pegIndex].length - 1];
+
+            if (targetTopDisk !== undefined && movingDisk > targetTopDisk) {
+                playErrorSound();
+                document.getElementById('msg').innerText = '⚠️ 哎呀！大圆盘不能放在小圆盘上面哦！';
+                document.getElementById(`peg${sourcePeg}`).classList.remove('selected');
+                selectedPeg = null;
+                renderDisks();
+                return;
+            }
+
+            pegs[sourcePeg].pop();
+            pegs[pegIndex].push(movingDisk);
+            playTone(392.00, 'triangle', 0.15, 0.1); 
+            moveCount++;
+            document.getElementById('moveCount').innerText = moveCount;
+            document.getElementById(`peg${sourcePeg}`).classList.remove('selected');
+            selectedPeg = null;
+            renderDisks();
+
+            if (pegs[2].length === totalDisks) {
+                setTimeout(() => { 
+                    playTone(523.25, 'sine', 0.2, 0.1);
+                    setTimeout(() => playTone(659.25, 'sine', 0.2, 0.1), 150);
+                    setTimeout(() => playTone(783.99, 'sine', 0.4, 0.1), 300);
+                    document.getElementById('winModal').style.display = 'flex'; 
+                }, 300);
+            }
+        }
+    }
+
+    function enableControls(enable) {
+        document.getElementById('diskSelect').disabled = !enable;
+        document.getElementById('btnReset').disabled = !enable;
+        document.getElementById('btnSolve').disabled = !enable;
+        document.getElementById('btnRule1').disabled = !enable;
+        document.getElementById('btnRule2').disabled = !enable;
+        document.getElementById('btnRule3').disabled = !enable;
+    }
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 🐢 慢速单步动画
+    async function animateMove(from, to) {
+        selectedPeg = from;
+        renderDisks();
+        playTone(523.25, 'triangle', 0.15, 0.08);
+        await sleep(1500); // 拿起后悬停 1.5 秒
+        
+        const disk = pegs[from].pop();
+        pegs[to].push(disk);
+        selectedPeg = null;
+        renderDisks();
+        playTone(392.00, 'triangle', 0.15, 0.08);
+        await sleep(1800); // 放下后静止 1.8 秒
+    }
+
+    // ==================== 🎬 优雅、超慢的独立规则演示 ====================
+
+    // 铁律一：只能拿最上面
+    async function demoRule1() {
+        isAnimating = true; enableControls(false);
+        totalDisks = 3; document.getElementById('diskSelect').value = "3";
+        pegs = [[3, 2, 1], [], []]; renderDisks();
+
+        updateTeacher("【铁律一：只能拿最上面】\n请看大屏幕。如果有人想犯规，直接去抽取最底部的 3 号大盘子……");
+        await sleep(2500); 
+        
+        playErrorSound();
+        document.getElementById('disks0').children[0].classList.add('ghost-disk');
+        document.getElementById('msg').innerText = '❌ 错误！不能抽取被压在底部的圆盘！';
+        await sleep(2500); 
+        document.getElementById('disks0').children[0].classList.remove('ghost-disk');
+        document.getElementById('msg').innerText = '';
+
+        updateTeacher("【铁律一：只能拿最上面】\n正确做法：必须像下面这样，慢悠悠地先拿走最顶上的 1 号盘子。");
+        await sleep(2500); 
+        await animateMove(0, 1);
+
+        updateTeacher("演示结束！现在你可以让小朋友在实体玩具上试一次拿起最上面的盘子。");
+        await sleep(3000); isAnimating = false; initGame();
+    }
+
+    // 铁律二：一次拿一个
+    async function demoRule2() {
+        isAnimating = true; enableControls(false);
+        totalDisks = 3; document.getElementById('diskSelect').value = "3";
+        pegs = [[3, 2, 1], [], []]; renderDisks();
+
+        updateTeacher("【铁律二：一次只能拿一个】\n看左边！如果有人想偷懒，一双手贪心地想同时抓起 1 号和 2 号两个盘子……");
+        await sleep(2500);
+
+        playErrorSound();
+        document.getElementById('disks0').children[2].classList.add('ghost-disk');
+        document.getElementById('disks0').children[1].classList.add('ghost-disk');
+        document.getElementById('msg').innerText = '❌ 错误！太贪心啦，一双手一次只能移动一片圆盘。';
+        await sleep(2500);
+        document.getElementById('disks0').children[2].classList.remove('ghost-disk');
+        document.getElementById('disks0').children[1].classList.remove('ghost-disk');
+        document.getElementById('msg').innerText = '';
+
+        updateTeacher("【铁律二：一次只能拿一个】\n正确示范：我们要遵守规则，乖乖地一次只挪动一个盘子。");
+        await sleep(2500);
+        await animateMove(0, 2);
+
+        updateTeacher("演示结束！在现实中玩的时候，也要监督他们一次只准拿一个哦。");
+        await sleep(3000); isAnimating = false; initGame();
+    }
+
+    // 铁律三：大不能压小
+    async function demoRule3() {
+        isAnimating = true; enableControls(false);
+        totalDisks = 3; document.getElementById('diskSelect').value = "3";
+        pegs = [[3, 2], [1], []]; renderDisks();
+
+        updateTeacher("【铁律三：大盘不能压小盘】\n注意看！现在中间有一片小小的 1 号盘。如果我把左边大一点的 2 号盘硬叠上去……");
+        await sleep(2500);
+
+        pegs[0].pop(); pegs[1].push(2);
+        renderDisks();
+        
+        playErrorSound();
+        document.getElementById('gameBoard').classList.add('flash-red');
+        document.getElementById('disks1').children[1].classList.add('ghost-disk');
+        document.getElementById('msg').innerText = '⚠️ 警报！大盘子（2号）绝对不能压在小盘子上！';
+        await sleep(3000);
+
+        document.getElementById('gameBoard').classList.remove('flash-red');
+        document.getElementById('msg').innerText = '';
+        pegs[1].pop(); pegs[0].push(2);
+        renderDisks();
+        await sleep(1000);
+
+        updateTeacher("【铁律三：大盘不能压小盘】\n正确示范：既然中间不能放，2 号盘就只能安全地放到右边空着的柱子上。");
+        await sleep(2500);
+        await animateMove(0, 2);
+
+        updateTeacher("演示结束！这是汉诺塔的核心难点，请让小朋友在实物上手动体会一下。");
+        await sleep(3000); isAnimating = false; initGame();
+    }
+
+    // 自动完美通关大顺溜
+    async function startAutoSolveDemo() {
+        isAnimating = true; enableControls(false);
+        totalDisks = 3; document.getElementById('diskSelect').value = "3";
+        pegs = [[3, 2, 1], [], []]; renderDisks();
+
+        const steps = [
+            {from: 0, to: 2, desc: "把 1 号小盘移动到右边。"},
+            {from: 0, to: 1, desc: "把 2 号中盘移动到中间。"},
+            {from: 2, to: 1, desc: "把 1 号小盘叠在 2 号上面。"},
+            {from: 0, to: 2, desc: "把最大的 3 号大盘安全运送到右边目的地！"},
+            {from: 1, to: 0, desc: "把 1 号小盘运回路口，让出通道。"},
+            {from: 1, to: 2, desc: "把 2 号中盘安全叠在 3 号上面。"},
+            {from: 0, to: 2, desc: "最后，把 1 号小盘放上塔顶！"}
+        ];
+
+        for(let i = 0; i < steps.length; i++) {
+            updateTeacher(`【通关教学 ${i+1}/7】\n${steps[i].desc}`);
+            await sleep(2000); 
+            await animateMove(steps[i].from, steps[i].to);
+        }
+
+        updateTeacher("🎉 机器人老师的慢速演示全部结束啦！现在请关掉屏幕，让小朋友在实体汉诺塔上慢慢尝试吧！");
+        await sleep(4000); isAnimating = false; initGame();
+    }
+
+    function closeModal() {
+        document.getElementById('winModal').style.display = 'none';
+        initGame();
+    }
+
+    window.onload = initGame;
+</script>
+
+</body>
+</html>
